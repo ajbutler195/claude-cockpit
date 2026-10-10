@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026-10-10] - Type: Config
+- Change: The README ends with a credit line naming the author and linking the GitHub profile.
+- Files: README.md, CHANGELOG.md
+- State impact: None
+- Field mutations: None
+- Performance: Not measured
+
 ## [2026-10-09] - Type: Config
 - Change: First public version of claude-cockpit. It contains the profile tools (`new-profile.sh`,
   `claude-as`, `claude-login`, `claude-profiles`), the usage readers (`claude-usage`,

@@ -534,3 +534,7 @@ it stays a separate step that you take yourself.
 You are responsible for using your own accounts within Anthropic's terms. This tool only works
 with accounts you own and sign in to yourself. It is provided as is, without warranty of any kind;
 see [LICENSE](LICENSE).
+
+---
+
+Made by Christian Johnston · [github.com/christianjohnston-ai](https://github.com/christianjohnston-ai)
