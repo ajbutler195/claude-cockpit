@@ -1,0 +1,27 @@
+{
+  "_comment": "Settings for the watcher (claude-autoswitch.py), the cockpit and claude-swap. install.sh copies this to ~/.claude-profiles/autoswitch.json once and never overwrites it. Keys starting with _ are notes and are ignored. The file is re-read on every poll, so edits need no restart.",
+
+  "_enabled": "Master switch for the watcher: alerts when the fleet account is nearly out. The cockpit's `a` key flips it. Does nothing unless you ran install_watcher.sh.",
+  "enabled": false,
+
+  "_swap_enabled": "OFF by default. Turning this on allows the no-browser swap: claude-swap <name>, the cockpit number keys, and auto-swap. A swap MOVES login tokens between keychain items. Read docs/safety.md before setting it to true. It must be the JSON value true; the text \"true\" does not count.",
+  "swap_enabled": false,
+
+  "_auto_swap": "Armed for ONE automatic swap. Set it with `claude-autoswitch --arm`, not by hand. The watcher turns it back off itself before it swaps. Ignored while swap_enabled is false.",
+  "auto_swap": false,
+
+  "_exclude_from_auto": "Profiles the watcher may never pick on its own. They stay available by hand. The key must exist, even as an empty list: the watcher refuses to run without it, so a typo cannot quietly make every account eligible.",
+  "exclude_from_auto": [],
+
+  "_thresholds": "Act once the fleet account's 5-hour OR weekly usage reaches switch_at_pct. A target must be under BOTH ceilings.",
+  "switch_at_pct": 97,
+  "target_max_session_pct": 60,
+  "target_max_week_pct": 85,
+
+  "_pacing": "poll_sec: how often the fleet is checked (a usage read, no inference). cooldown_min: minimum gap between alerts.",
+  "poll_sec": 45,
+  "cooldown_min": 20,
+
+  "_notify": "macOS notification on a switch and when every account is out.",
+  "notify": true
+}

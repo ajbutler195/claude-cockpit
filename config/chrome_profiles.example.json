@@ -1,0 +1,4 @@
+{
+  "_comment": "OPTIONAL. Only needed when an account's sign-in page opens in the wrong Chrome window. Normally claude-switch finds the right Chrome profile by itself, by matching the Claude account's email to the Google account each Chrome profile is signed in to. Use this file when those two emails differ (for example the Claude account was moved to a new address). Copy it to ~/.claude-profiles/chrome-profiles.json and list each exception: Claude account email -> Chrome profile folder name (see chrome://version, 'Profile Path'). Check a mapping with: python3 ~/.claude-profiles/claude-switch.py --chrome-profile-for <profile-name>",
+  "account@example.com": "Profile 3"
+}

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for the watcher. install_watcher.sh fills in the three placeholders (home
+  folder, user name, and an optional Claude Code path) and writes the result to
+  ~/Library/LaunchAgents/com.claude-cockpit.autoswitch.plist.
+
+  WHY /usr/bin/python3 and not "python3": launchd does not read your shell profile,
+  so PATH is whatever is written below. /usr/bin/python3 is the one interpreter
+  every Mac with the Command Line Tools has, which is why all the tools stay
+  compatible with its version (3.9).
+  WHY HOME and USER are set explicitly: the tools find everything through ~ and the
+  macOS `security` command finds the login keychain through HOME.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.claude-cockpit.autoswitch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>__HOME__/.claude-profiles/claude-autoswitch.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>USER</key><string>__USER__</string>
+    <key>PATH</key><string>__HOME__/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+__CLAUDE_BIN_ENV__
+  </dict>
+  <key>WorkingDirectory</key><string>__HOME__</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>60</integer>
+  <key>StandardOutPath</key><string>__HOME__/.claude-profiles/autoswitch.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.claude-profiles/autoswitch.log</string>
+</dict>
+</plist>

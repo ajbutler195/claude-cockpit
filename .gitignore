@@ -1,0 +1,23 @@
+# Runtime state. On a real install these files live under ~/.claude-profiles, never in
+# this repo. They are listed here because the tests, or a tool run in place by mistake,
+# can create them next to the code, and every one of them describes a real account.
+__pycache__/
+*.pyc
+.DS_Store
+.usage-cache.json
+.swap-ledger.jsonl
+.last-switch.json
+.last-swap.json
+.last-aim
+autoswitch.json
+autoswitch.log
+chrome-profiles.json
+fleet_config_dir
+meters.jsonl
+forecast.json
+forecast_history.jsonl
+token_hours.json
+*.bak
+*.bak.*
+# A profile folder IS a login (identity, MCP server config, folder trust list).
+.claude.json
