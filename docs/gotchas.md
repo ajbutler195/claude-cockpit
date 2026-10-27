@@ -1,8 +1,8 @@
 # Gotchas
 
-A gotcha is something about Claude Code, the macOS keychain or these tools that behaved in a way
-nobody would guess from reading the code, and that cost real time or a real login to find out.
-Each one has a symptom, the reason, and what to do.
+A gotcha is something about Claude Code, another vendor's CLI that the tools start, the macOS
+keychain or these tools that behaved in a way nobody would guess from reading the code, and that
+cost real time or a real login to find out. Each one has a symptom, the reason, and what to do.
 
 How to read this file:
 
@@ -30,6 +30,11 @@ How to read this file:
 | 2026-08-24 | 2.1.241 |
 | 2026-10-01 | 2.1.287 |
 | 2026-10-09 | 2.1.296 (the version this release was tested with) |
+
+Entries from #57 on are about OpenAI's Codex CLI. They were measured for the multi-provider plan
+([multi_provider/](multi_provider/)) with `scripts/measure_codex.py`, on a free ChatGPT plan signed
+in through Google. Each one names its Codex version: 0.162.1 for the measurements of 2026-10-13,
+and 0.163.0 for those of 2026-10-22, after Homebrew upgraded it on 2026-10-20.
 
 ---
 
@@ -1381,3 +1386,223 @@ it. Adding one more key to the hint text raised the width needed for a one-row f
 How it was tested: the real key loop was run in a pseudo-terminal with the refresh stubbed out, so
 no probe ran, and the screen was read with a terminal emulator at four widths, pressing only `e`
 and never a digit. A running cockpit keeps the old code until it is restarted.
+
+---
+
+## 57. Codex writes into any folder it is pointed at, even for `codex --version`
+
+**Symptom:** A folder you pointed `CODEX_HOME` at holds files you never asked for. Or `~/.codex`
+appears on a Mac that has never used Codex, after a bare `codex --version`.
+
+**Why it happens:** Every Codex start creates `tmp/arg0/` in its home: a lock file and links named
+`apply_patch`, `applypatch` and `codex-execve-wrapper`. That includes `codex --version` and
+`codex login status`. Starting `codex app-server` once also adds SQLite databases (state, logs,
+goals, memories, queue), an `installation_id`, and the bundled system skills under
+`skills/.system/`. Measured 2026-10-13 on 0.162.1. Twice during the measurements, a stray
+`codex --version` run without `CODEX_HOME` created `~/.codex` on a Mac that had never used Codex.
+
+With `CODEX_HOME` set, Codex moves all of its per-user state, the login included. A sign-in with it
+set left `~/.codex` untouched.
+
+**What to do:** The rule of gotcha #30 holds for Codex: filter first, probe second. A folder is a
+Codex profile only if it holds the cockpit's marker (requirements R15). No tool starts Codex
+without setting `CODEX_HOME`: to a profile, or to a scratch folder when it only needs the program.
+
+---
+
+## 58. The interactive Codex app leaves a background daemon running for its home. It updates itself and outlives the session
+
+**Symptom:** Codex processes keep running days after the last session closed. They run from a copy
+of Codex inside the profile's home, and they keep running after that home was signed out and
+deleted.
+
+**Why it happens:** Measured 2026-10-13 to 2026-10-23. One interactive session (`codex` with no
+arguments) in a measurement home started a managed app-server daemon, as two processes:
+
+- a parent, `codex app-server daemon pid-update-loop`, adopted by `launchd`;
+- its child, `codex app-server --listen unix:// --analytics-default-enabled --managed-daemon`.
+
+Both run from `$CODEX_HOME/packages/app-server-daemon/releases/<version>/bin/codex`, a copy of
+Codex that the daemon keeps in the home and updates by itself. It was on 0.163.0 by 2026-10-15,
+five days before Homebrew upgraded the CLI. It ran for nine days, through `codex logout` and the
+deletion of its home, until its processes were ended by hand. It installed no launch agent, so it
+does not come back after a restart until the next interactive session.
+
+The daemon runs with analytics on by default. That is what the flag above means: according to
+`codex app-server --help`, a user opts out with `[analytics] enabled = false` in `config.toml`.
+
+It is still one daemon per home. Its socket is `/private/tmp/codex-daemon-<uid>/` followed by the
+SHA-256 of `$CODEX_HOME/app-server-control/app-server-control.sock`. Codex moves the socket there
+because macOS limits socket paths to about 104 bytes. Two profiles therefore never share a daemon,
+or the login it holds.
+
+`codex app-server` over stdio, which the measurements and the cockpit's usage reads use, started
+no daemon.
+
+**What to do:**
+
+- Before removing a Codex profile, stop its daemon: `CODEX_HOME=<profile> codex app-server daemon stop`.
+  Once the home is gone the daemon cannot be reached through its socket. Then end the processes
+  whose command starts with the old home's path, the parent update loop first, so that it cannot
+  start the server again.
+- `cockpit verify` lists the daemons running for each profile (requirements R93).
+- The Codex section of `safety.md` says that interactive sessions start a daemon with analytics on,
+  and how to turn analytics off.
+- `scripts/measure_codex.py` stops the daemon in m6 and in `clean`. Its first `clean` missed it.
+
+---
+
+## 59. Where Codex keeps a login: `auth.json`, or a keychain item named after the home's path
+
+**Symptom:** (The one this prevents.) A Codex profile in keychain mode is renamed or moved. It
+signs out, and its login stays behind in the keychain under the old name.
+
+**Why it happens:** By default (`cli_auth_credentials_store` unset), Codex keeps the login in
+`$CODEX_HOME/auth.json`, mode 600, and creates no keychain item. Measured 2026-10-13 on 0.162.1.
+
+In keychain mode (`-c cli_auth_credentials_store="keyring"`), each home gets its own
+generic-password item:
+
+- service `Codex Auth`;
+- account `cli|` followed by the first 16 hex characters of the SHA-256 of the `CODEX_HOME` path
+  string.
+
+Measured 2026-10-22 on 0.163.0, with two homes signed in to the same account. The second sign-in
+did not disturb the first.
+
+As with Claude Code's slots, the name comes from the path string. So a renamed folder, another
+path to it, or another case on a case-insensitive disk names a different item. macOS asked for no
+keychain permission, because Codex reads only the items it created itself. The only interaction
+was the browser sign-in.
+
+**What to do:** Both modes keep profiles apart, so the tools need not force either. Treat Codex
+profile paths as permanent and exact (requirements R5 and R19). `codex logout` in a keychain-mode
+home removes its item, and the measurement script's `clean` checks that none is left.
+
+---
+
+## 60. Codex refresh tokens change at every renewal; two logins for one account coexist; two processes in one home survive a renewal
+
+**Symptom:** None observed. These are the facts the multi-provider design needed before it could
+trust Codex logins.
+
+**Why it happens:** Each was measured with forced renewals (`account/read` with
+`refreshToken: true`) through `codex app-server`.
+
+- **Every renewal changed the refresh token's fingerprint**, on both versions. Codex refresh tokens
+  rotate, like Claude Code's (gotcha #1). It follows that copying an `auth.json` would break the
+  other holder at its next renewal, and OpenAI's CI guide warns against sharing one file between
+  concurrent jobs. That was not tested: never copy a login.
+- **Two logins for one account coexist.** Two homes, signed in separately to the same account,
+  both worked right after the second sign-in and after each renewed. Nine days later they still
+  worked after renewing again (2026-10-13 to 2026-10-22). Two keychain-mode homes behaved the same.
+  A new sign-in does not cancel an account's older logins, as the addendum to gotcha #1 found for
+  Claude Code.
+- **Two processes in one home survive a renewal.** With two app servers in one home, the first
+  renewed. The second then read usage, and its own forced renewal succeeded without writing
+  `auth.json` again: its fingerprints and `last_refresh` were unchanged. A fresh read afterwards
+  worked. Codex does not spend a stale refresh token when another process in the same home has just
+  renewed (2026-10-22, 0.163.0).
+
+**What to do:**
+
+- Never copy a Codex login.
+- Two profiles may hold the same account; requirements R29 can say that both keep working.
+- Several sessions may share one profile; R39 needs no warning for Codex.
+
+---
+
+## 61. Reading a Codex account and its usage without spending usage
+
+**Symptom:** `codex login status` prints only `Logged in using ChatGPT`, with no account, and no
+file holds Codex's usage.
+
+**Why it happens:** Both come from `codex app-server`, which speaks JSON-RPC 2.0 over stdin and
+stdout, one message per line, without the `"jsonrpc"` field. The client sends `initialize` with
+`clientInfo` (`name`, `version`). The result holds `codexHome`, `platformFamily`, `platformOs` and
+`userAgent`. The client then sends the notification `initialized`. After that:
+
+- `account/read` with `{"refreshToken": false}` returns `requiresOpenaiAuth` and an `account`. That
+  is `type` `chatgpt` with `email` and `planType`, or `type` `apiKey`, or null when signed out.
+- `account/rateLimits/read` with `{"excludeResetCreditDetails": true}` returns `rateLimits` and
+  `rateLimitsByLimitId`. Each holds `primary` and `secondary` windows (`usedPercent`,
+  `windowDurationMins`, `resetsAt` in Unix seconds), `planType` and credits. Signed out, it fails
+  with error -32600, "codex account authentication required to read rate limits".
+
+On the free plan (2026-10-13, 0.162.1) there is one window of 43,200 minutes (30 days) and no
+second one. Three reads over ten minutes left it at 0%. At 0% the reset time is "now plus 30 days",
+so it moved forward ten minutes between the first read and the last. The measurement script first
+reported that as a change, and now judges by the percent used. Paid plans' 5-hour and weekly windows
+have not been measured.
+
+The same server also offers `account/rateLimitResetCredit/consume`, which spends a rate-limit reset
+credit, and `account/sendAddCreditsNudgeEmail`, which sends an email. Neither is a read. The
+protocol is version-specific: `codex app-server generate-json-schema --out <dir>` writes the
+installed version's schema.
+
+**What to do:**
+
+- Read identity and usage only with `account/read` and `account/rateLimits/read`, through an
+  allowlist of read methods in code (requirements R55).
+- Judge usage by the percent used, never by a moved reset time.
+- Label windows from `windowDurationMins` (requirements R45).
+
+---
+
+## 62. Environment variables that change Codex
+
+**Symptom:** A Codex session uses a different login than its profile's, or does not start at all,
+because of a variable exported in the shell.
+
+**Why it happens:** Each variable the binary names was set to a dummy value in a signed-in home,
+followed by `account/read` and `account/rateLimits/read`. Measured 2026-10-13 on 0.162.1.
+
+- `CODEX_ACCESS_TOKEN` replaces the stored login: the account read as signed out.
+- `OPENAI_FEDERATION_RULE_ID` and `OPENAI_IDENTITY_TOKEN_FILE` stop `codex app-server` from
+  starting (workload identity).
+- `CODEX_SQLITE_HOME` moves the SQLite state databases out of the home.
+- The other fifteen changed neither read. Among them are `OPENAI_API_KEY`, `CODEX_API_KEY` and
+  `OPENAI_BASE_URL`. Their effect on model requests was not tested.
+
+**What to do:** `cockpit as codex/<name>` removes `CODEX_ACCESS_TOKEN`,
+`OPENAI_FEDERATION_RULE_ID`, `OPENAI_IDENTITY_TOKEN_FILE` and `CODEX_SQLITE_HOME`. Until model
+requests are tested, it also removes the API-key and base-URL variables (requirements R34).
+`scripts/measure_codex.py` lists all nineteen names.
+
+---
+
+## 63. `codex login` ignores `BROWSER`
+
+**Symptom:** A Codex sign-in page always opens in the default browser's last-used window, never in
+the Chrome profile you aimed it at.
+
+**Why it happens:** With `BROWSER` set to a recording script, `codex login` did not call it within
+25 seconds. It opened the default browser itself and printed a sign-in URL at `auth.openai.com` and
+a `localhost` callback. Measured 2026-10-13 on 0.162.1. Unlike Claude Code (gotcha #32), Codex
+offers no lever for this. An account that signs in to OpenAI with Google meets two account choosers
+in a row: OpenAI's, then Google's.
+
+**What to do:**
+
+- No aiming for Codex (requirements R27).
+- After every sign-in, read `account/read` and compare the account with the one the profile had
+  before (R26).
+- For a sign-in on another device, use `codex login --device-auth`, once the ChatGPT account has
+  enabled it.
+
+---
+
+## 64. Codex settings shared by symbolic link stay links when Codex writes them
+
+**Symptom:** (The one this checks for.) A setting changed in one Codex profile stops showing in the
+others, because Codex replaced a shared link with a real file. Claude Code can do exactly that to
+`settings.json` ([how_it_works.md](how_it_works.md)).
+
+**Why it happens:** Six items were linked into a home: `AGENTS.md`, `prompts/`, `skills/`,
+`config.toml`, `history.jsonl` and `sessions/`. An interactive session then trusted a folder,
+answered one prompt and changed the model (2026-10-13, 0.162.1). All six stayed links. Codex wrote
+through `config.toml`, `history.jsonl`, `sessions/` and `skills/`, and did not write to `AGENTS.md`
+or `prompts/`. One session does not reach every code path, so `verify` keeps checking.
+
+**What to do:** Codex profiles may share these six items with the default home (requirements R18),
+and `cockpit verify` checks that each one is still a link (R65). Never link `auth.json`.

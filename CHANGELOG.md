@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-10-27] - Type: Config
+- Change: Plans the multi-provider extension and measures OpenAI's Codex CLI for it.
+  - `docs/multi_provider/requirements.md` specifies `cockpit`: one command that starts a session on
+    any account of any supported AI coding service, plus a usage screen for every provider.
+  - `docs/multi_provider/implementation_plan.md` plans it in phases 0 to 7.
+  - `scripts/measure_codex.py` measures the Codex facts the plan relies on. It works in throwaway
+    home folders under `~/.cockpit/measure/codex`, records no tokens, and is not installed.
+  - `docs/gotchas.md` gains entries #57 to #64 with the results, measured on Codex 0.162.1 and
+    0.163.0. Its opening now covers other vendors' CLIs.
+  - No installed tool changes.
+- Files: CHANGELOG.md, docs/gotchas.md, docs/multi_provider/requirements.md,
+  docs/multi_provider/implementation_plan.md, scripts/measure_codex.py
+- State impact: None
+- Field mutations: None
+- Performance: Not measured
+
 ## [2026-10-10] - Type: Config
 - Change: The README ends with a credit line naming the author and linking the GitHub profile.
 - Files: README.md, CHANGELOG.md
